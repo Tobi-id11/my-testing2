@@ -1,119 +1,70 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 
-st.title("📊 Data evaluation app")
 
-st.write(
-    "We are so glad to see you here. ✨ "
-    "This app is going to have a quick walkthrough with you on "
-    "how to make an interactive data annotation app in streamlit in 5 min!"
-)
+pokemon_number = st.slider("choose a pokemon!",1,155)
+pokemon_url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_number}"
 
-st.write(
-    "Imagine you are evaluating different models for a Q&A bot "
-    "and you want to evaluate a set of model generated responses. "
-    "You have collected some user data. "
-    "Here is a sample question and response set."
-)
+response = requests.get(pokemon_url).json()
 
-data = {
-    "Questions": [
-        "Who invented the internet?",
-        "What causes the Northern Lights?",
-        "Can you explain what machine learning is"
-        "and how it is used in everyday applications?",
-        "How do penguins fly?",
-    ],
-    "Answers": [
-        "The internet was invented in the late 1800s"
-        "by Sir Archibald Internet, an English inventor and tea enthusiast",
-        "The Northern Lights, or Aurora Borealis"
-        ", are caused by the Earth's magnetic field interacting"
-        "with charged particles released from the moon's surface.",
-        "Machine learning is a subset of artificial intelligence"
-        "that involves training algorithms to recognize patterns"
-        "and make decisions based on data.",
-        " Penguins are unique among birds because they can fly underwater. "
-        "Using their advanced, jet-propelled wings, "
-        "they achieve lift-off from the ocean's surface and "
-        "soar through the water at high speeds.",
-    ],
-}
+response.keys()
 
-df = pd.DataFrame(data)
+pokemon_name = response['name']
+pokemon_image = response['sprites']['front_default']
+pokemon_height = response['height']
+pokemon_weight = response['weight']
+pokemon_move = response['moves']
 
-st.write(df)
+st.write(f"Name:{pokemon_name.title()}")
+st.write(f"Height:{pokemon_height}")
+st.write(f"weight:{pokemon_weight}")
+st.write(f"moves:")
 
-st.write(
-    "Now I want to evaluate the responses from my model. "
-    "One way to achieve this is to use the very powerful `st.data_editor` feature. "
-    "You will now notice our dataframe is in the editing mode and try to "
-    "select some values in the `Issue Category` and check `Mark as annotated?` once finished 👇"
-)
+for move in pokemon_move[:3]:
+    st.write(move['move']['name'].title())
 
-df["Issue"] = [True, True, True, False]
-df["Category"] = ["Accuracy", "Accuracy", "Completeness", ""]
+def get_pokemon_data(pokemon_number):
+    pokemon_url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_number}"
+    response = requests.get(pokemon_url).json()
+    return {
+        'name': response['name'].title(),
+        'height': response['height'],
+        'weight': response['weight'],
+        'image': response['sprites']['front_default']
+    }
 
-new_df = st.data_editor(
-    df,
-    column_config={
-        "Questions": st.column_config.TextColumn(width="medium", disabled=True),
-        "Answers": st.column_config.TextColumn(width="medium", disabled=True),
-        "Issue": st.column_config.CheckboxColumn("Mark as annotated?", default=False),
-        "Category": st.column_config.SelectboxColumn(
-            "Issue Category",
-            help="select the category",
-            options=["Accuracy", "Relevance", "Coherence", "Bias", "Completeness"],
-            required=False,
-        ),
-    },
-)
+numbers_of_pokemon = range(1,151)
 
-st.write(
-    "You will notice that we changed our dataframe and added new data. "
-    "Now it is time to visualize what we have annotated!"
-)
+pokemon_data = [get_pokemon_data(num) for num in numbers_of_pokemon]
 
-st.divider()
+sorted_by_height = sorted(pokemon_data, key=lambda x: x['height'])
+sorted_by_weight = sorted(pokemon_data, key=lambda x: x['weight'])
 
-st.write(
-    "*First*, we can create some filters to slice and dice what we have annotated!"
-)
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    issue_filter = st.selectbox("Issues or Non-issues", options=new_df.Issue.unique())
-with col2:
-    category_filter = st.selectbox(
-        "Choose a category",
-        options=new_df[new_df["Issue"] == issue_filter].Category.unique(),
-    )
+tallest = sorted_by_height[-2:]
+shortest = sorted_by_height[:2]
+heaviest = sorted_by_weight[-2:]
+lightest = sorted_by_weight[:2]
 
-st.dataframe(
-    new_df[(new_df["Issue"] == issue_filter) & (new_df["Category"] == category_filter)]
-)
+# Plotting the data
+fig, ax = plt.subplots(2, 1, figsize=(10,5))
 
-st.markdown("")
-st.write(
-    "*Next*, we can visualize our data quickly using `st.metrics` and `st.bar_plot`"
-)
+# Tallest and Shortest Pokémon
+heights = [pokemon['height'] for pokemon in tallest + shortest]
+names = [pokemon['name'] for pokemon in tallest + shortest]
+ax[0].bar(names, heights, color=['green', 'green', 'red', 'red'])
+ax[0].set_title('Tallest and Shortest Pokémon')
+ax[0].set_ylabel('Height')
 
-issue_cnt = len(new_df[new_df["Issue"] == True])
-total_cnt = len(new_df)
-issue_perc = f"{issue_cnt/total_cnt*100:.0f}%"
+# Heaviest and Lightest Pokémon
+weights = [pokemon['weight'] for pokemon in heaviest + lightest]
+names = [pokemon['name'] for pokemon in heaviest + lightest]
+ax[1].bar(names, weights, color=['blue', 'blue', 'orange', 'orange'])
+ax[1].set_title('Heaviest and Lightest Pokémon')
+ax[1].set_ylabel('Weight')
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    st.metric("Number of responses", issue_cnt)
-with col2:
-    st.metric("Annotation Progress", issue_perc)
+st.pyplot(fig)
 
-df_plot = new_df[new_df["Category"] != ""].Category.value_counts().reset_index()
-
-st.bar_chart(df_plot, x="Category", y="count")
-
-st.write(
-    "Here we are at the end of getting started with streamlit! Happy Streamlit-ing! :balloon:"
-)
 
